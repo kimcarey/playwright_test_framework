@@ -1,12 +1,13 @@
 """
 API Client wrapper around Playwright's async request functionality.
-Provides a clean, easy-to-use interface for API testing.
+Provides a clean, easy-to-use interface for API testing with configuration support.
 """
 
 from typing import Dict, Any, Optional, Union
 from playwright.async_api import async_playwright, APIResponse
 import json
 import logging
+from .config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -17,16 +18,34 @@ class APIClient:
     Simplifies making HTTP requests and provides useful utilities for testing.
     """
 
-    def __init__(self, base_url: str = "", headers: Optional[Dict[str, str]] = None):
+    def __init__(self, base_url: str = "", headers: Optional[Dict[str, str]] = None,
+                 config_file: Optional[str] = None):
         """
         Initialize the API client.
 
         Args:
-            base_url: Base URL for all requests (e.g., 'https://api.example.com')
-            headers: Default headers to include with all requests
+            base_url: Base URL for all requests (overrides config)
+            headers: Default headers (merged with config headers)
+            config_file: Path to YAML configuration file
         """
-        self.base_url = base_url.rstrip('/')  # Remove trailing slash
-        self.default_headers = headers or {}
+        # Load configuration
+        if config_file:
+            self.config = Config(config_file)
+        else:
+            self.config = Config()  # Use defaults
+
+        # Override config with constructor parameters
+        self.base_url = base_url or self.config.base_url
+        self.base_url = self.base_url.rstrip('/')  # Remove trailing slash
+
+        # Merge headers: config headers + constructor headers
+        self.default_headers = self.config.default_headers.copy()
+        if headers:
+            self.default_headers.update(headers)
+
+        # Set up logging level
+        logging.getLogger().setLevel(getattr(logging, self.config.log_level))
+
         self._playwright = None
         self._request_context = None
 
@@ -48,19 +67,21 @@ class APIClient:
             await self._playwright.stop()
 
     def _build_url(self, endpoint: str) -> str:
+        """Build full URL from base_url and endpoint"""
         if endpoint.startswith('http'):
-            return endpoint
-        endpoint = endpoint.lstrip('/')
+            return endpoint  # Full URL provided
+        endpoint = endpoint.lstrip('/')  # Remove leading slash
         return f"{self.base_url}/{endpoint}" if self.base_url else endpoint
 
     def _merge_headers(self, headers: Optional[Dict[str, str]]) -> Dict[str, str]:
+        """Merge default headers with request-specific headers"""
         merged = self.default_headers.copy()
         if headers:
             merged.update(headers)
         return merged
 
     async def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None,
-                  headers: Optional[Dict[str, str]] = None) -> 'APIResponseWrapper':
+            headers: Optional[Dict[str, str]] = None) -> 'APIResponseWrapper':
         """
         Make a GET request.
 
@@ -86,7 +107,7 @@ class APIClient:
         return APIResponseWrapper(response)
 
     async def post(self, endpoint: str, data: Optional[Union[Dict, str]] = None,
-                   headers: Optional[Dict[str, str]] = None) -> 'APIResponseWrapper':
+             headers: Optional[Dict[str, str]] = None) -> 'APIResponseWrapper':
         """
         Make a POST request.
 
@@ -117,7 +138,7 @@ class APIClient:
         return APIResponseWrapper(response)
 
     async def put(self, endpoint: str, data: Optional[Union[Dict, str]] = None,
-                  headers: Optional[Dict[str, str]] = None) -> 'APIResponseWrapper':
+            headers: Optional[Dict[str, str]] = None) -> 'APIResponseWrapper':
         """Make a PUT request."""
         url = self._build_url(endpoint)
         merged_headers = self._merge_headers(headers)
@@ -162,27 +183,35 @@ class APIResponseWrapper:
 
     @property
     def status(self) -> int:
+        """HTTP status code"""
         return self._response.status
 
     @property
     def status_text(self) -> str:
+        """HTTP status text"""
         return self._response.status_text
 
     @property
     def headers(self) -> Dict[str, str]:
+        """Response headers"""
         return self._response.headers
 
     async def json(self) -> Dict[str, Any]:
+        """Parse response body as JSON"""
         return await self._response.json()
 
     async def text(self) -> str:
+        """Get response body as text"""
         return await self._response.text()
 
     def is_successful(self) -> bool:
+        """Check if status code indicates success (200-299)"""
         return 200 <= self.status < 300
 
     def is_client_error(self) -> bool:
+        """Check if status code indicates client error (400-499)"""
         return 400 <= self.status < 500
 
     def is_server_error(self) -> bool:
+        """Check if status code indicates server error (500-599)"""
         return 500 <= self.status < 600

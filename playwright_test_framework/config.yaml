@@ -1,0 +1,22 @@
+# API Settings
+base_url: "https://jsonplaceholder.typicode.com"
+timeout: 30  # seconds
+retry_count: 3
+
+# Default headers for all requests
+default_headers:
+  User-Agent: "Playwright-Test-Framework/1.0"
+  Content-Type: "application/json"
+  Accept: "application/json"
+
+# Logging
+log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+# Future expansion examples (commented out)
+# environments:
+#   dev:
+#     base_url: "https://dev-api.example.com"
+#   staging:
+#     base_url: "https://staging-api.example.com"
+#   prod:
+#     base_url: "https://api.example.com"
