@@ -62,19 +62,14 @@ class Config:
             raise ValueError(f"Invalid YAML in config file {config_file}: {e}")
 
     def _load_from_environment(self):
-        """Load configuration from environment variables (overrides file config)."""
-        if os.getenv('API_BASE_URL'):
-            self.base_url = os.getenv('API_BASE_URL')
-        if os.getenv('API_TIMEOUT'):
-            self.timeout = int(os.getenv('API_TIMEOUT'))
-        if os.getenv('API_RETRY_COUNT'):
-            self.retry_count = int(os.getenv('API_RETRY_COUNT'))
-        if os.getenv('API_LOG_LEVEL'):
-            self.log_level = os.getenv('API_LOG_LEVEL')
-
-        # Handle API key from environment (for authentication)
+        """Load secrets from environment variables."""
+        # Only handle secrets, not configuration
         if os.getenv('API_KEY'):
             self.default_headers['Authorization'] = f"Bearer {os.getenv('API_KEY')}"
+
+        if os.getenv('API_SECRET'):
+            # Could be used for signing requests, etc.
+            pass  # Store as needed for your specific use case
 
     def get_all(self) -> Dict[str, Any]:
         """Get all configuration as a dictionary."""
