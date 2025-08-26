@@ -1,11 +1,12 @@
 """
-Example API tests showing how to use the framework.
+Example API tests showing how to use the framework with helper validations.
 Uses JSONPlaceholder (a free fake API).
 """
 
 import pytest
 import pytest_asyncio
-from src.framework.api_client import APIClient
+from framework.api_client import APIClient
+from framework.helpers import APIValidations, ResponseValidations
 
 
 class TestJSONPlaceholderAPI:
@@ -24,18 +25,9 @@ class TestJSONPlaceholderAPI:
 
         # Using our custom assertion methods
         assert response.is_successful()
-        assert response.status == 200
+        ResponseValidations.validate_status_code(response, 200)
 
-        # Check response content
-        posts = await response.json()
-        assert isinstance(posts, list)
-        assert len(posts) > 0
-
-        # Verify structure of first post
-        first_post = posts[0]
-        required_fields = ['id', 'title', 'body', 'userId']
-        for field in required_fields:
-            assert field in first_post
+        await APIValidations.validate_post_list(response, min_count=0)
 
     @pytest.mark.asyncio
     async def test_get_single_post(self, api_client):
@@ -45,11 +37,7 @@ class TestJSONPlaceholderAPI:
 
         assert response.is_successful()
 
-        post = await response.json()
-        assert post['id'] == post_id
-        assert 'title' in post
-        assert 'body' in post
-        assert 'userId' in post
+        await APIValidations.validate_single_post(response, post_id)
 
     @pytest.mark.asyncio
     async def test_create_post(self, api_client):
@@ -63,13 +51,9 @@ class TestJSONPlaceholderAPI:
         response = await api_client.post("/posts", data=new_post)
 
         assert response.is_successful()
-        assert response.status == 201
+        ResponseValidations.validate_status_code(response, 201)
 
-        created_post = await response.json()
-        assert created_post['title'] == new_post['title']
-        assert created_post['body'] == new_post['body']
-        assert created_post['userId'] == new_post['userId']
-        assert 'id' in created_post  # API should assign an ID
+        await APIValidations.validate_json_contains_fields(response, ['title', 'body', 'userId'])
 
     @pytest.mark.asyncio
     async def test_update_post(self, api_client):
@@ -85,7 +69,7 @@ class TestJSONPlaceholderAPI:
         response = await api_client.put(f"/posts/{post_id}", data=updated_data)
 
         assert response.is_successful()
-        assert response.status == 200
+        ResponseValidations.validate_status_code(response, 200)
 
         updated_post = await response.json()
         assert updated_post['title'] == updated_data['title']
@@ -98,7 +82,7 @@ class TestJSONPlaceholderAPI:
         response = await api_client.delete(f"/posts/{post_id}")
 
         assert response.is_successful()
-        assert response.status == 200
+        ResponseValidations.validate_status_code(response, 200)
 
     @pytest.mark.asyncio
     async def test_404_error_handling(self, api_client):
@@ -106,7 +90,7 @@ class TestJSONPlaceholderAPI:
         response = await api_client.get("/posts/99999")  # Non-existent post
 
         assert response.is_client_error()
-        assert response.status == 404
+        ResponseValidations.validate_status_code(response, 404)
         assert not response.is_successful()
 
     @pytest.mark.asyncio
@@ -117,7 +101,4 @@ class TestJSONPlaceholderAPI:
 
         assert response.is_successful()
 
-        post = await response.json()
-        assert post['id'] == post_id
-        assert len(post['title']) > 0
-        assert len(post['body']) > 0
+        await APIValidations.validate_single_post(response, post_id)
